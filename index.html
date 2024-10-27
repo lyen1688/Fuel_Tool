@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuel 第2季积分批量查询</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+    <style>
+        /* Previous styles remain the same ... */
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1000px;
+            margin-top: 50px;
+            padding: 30px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .info {
+            margin-bottom: 30px;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            resize: vertical;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #result {
+            margin-top: 30px;
+        }
+        .summary {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .address-cell {
+            cursor: pointer;
+        }
+        .address-cell:hover {
+            text-decoration: underline;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Fuel 第2季积分批量查询</h1>
+        <div class="info">
+            <p>支持Fuel主网钱包地址批量查询，快速安全！</p>
+            <p><a href="https://ybot.io" target="_blank">Runes符文批量铸造：ybot.io&nbsp;<i class="bi bi-box-arrow-up-right"></i></a>（全网铸造成本最低，支持无限加速！）</p>
+        </div>
+        <div class="mb-3">
+            <textarea class="form-control" placeholder="输入地址列表,每行一个地址" id="address-input"></textarea>
+        </div>
+        <div class="d-grid">
+            <button class="btn btn-primary" type="button" id="query-btn">
+                <i class="bi bi-search"></i> 批量查询
+            </button>
+        </div>
+        <div id="result"></div>
+    </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    const addressInput = document.getElementById('address-input');
+    const queryBtn = document.getElementById('query-btn');
+    const resultDiv = document.getElementById('result');
+
+    // 初始化累计信息
+    let totalSummary = {
+        walletCount: 0,
+        totalPoints: 0
+    };
+
+    // 函数：缩短地址显示
+    function shortenAddress(address) {
+        if (address.length <= 10) return address;
+        return `${address.slice(0, 5)}...${address.slice(-5)}`;
+    }
+
+    // 函数：切换地址显示
+    function toggleAddress(element, fullAddress) {
+        const currentText = element.textContent;
+        if (currentText.includes('...')) {
+            element.textContent = fullAddress;
+        } else {
+            element.textContent = shortenAddress(fullAddress);
+        }
+    }
+
+    queryBtn.addEventListener('click', function() {
+        let addresses = addressInput.value.split('\n').filter(address => address.trim() !== '');
+        addresses = addresses.map(address => address.toLowerCase());
+
+        // 重置累计信息
+        totalSummary = {
+            walletCount: addresses.length,
+            totalPoints: 0
+        };
+
+        // 清空上一次的结果
+        resultDiv.innerHTML = '';
+
+        // 创建累计余额和导出按钮的容器
+        let summaryContainer = document.getElementById('total-summary-container');
+        if (!summaryContainer) {
+            summaryContainer = document.createElement('div');
+            summaryContainer.className = 'd-flex justify-content-between align-items-center mb-3 mt-4';
+            summaryContainer.id = 'total-summary-container';
+            resultDiv.parentNode.insertBefore(summaryContainer, resultDiv);
+        } else {
+            summaryContainer.innerHTML = '';
+        }
+
+        let totalSummarySpan = document.createElement('span');
+        totalSummarySpan.id = 'total-summary';
+        totalSummarySpan.textContent = '正在查询...';
+        summaryContainer.appendChild(totalSummarySpan);
+
+        let resultTable = document.createElement('table');
+        resultTable.className = 'table table-striped';
+        resultTable.innerHTML = `
+            <thead>
+                <tr>
+                    <th>编号</th>
+                    <th>钱包地址</th>
+                    <th>被动积分</th>
+                    <th>主动积分</th>
+                    <th>GAS积分</th>
+                    <th>总积分</th>
+                </tr>
+            </thead>
+            <tbody>
+        `;
+
+        addresses.forEach((address, index) => {
+            let row = resultTable.insertRow(-1);
+            row.id = 'address-row-' + index;
+            row.insertCell(0).textContent = index + 1;
+            
+            // 创建地址单元格，添加点击事件和样式
+            let addressCell = row.insertCell(1);
+            addressCell.className = 'address-cell';
+            addressCell.textContent = shortenAddress(address);
+            addressCell.setAttribute('data-full-address', address);
+            addressCell.setAttribute('title', '点击显示/隐藏完整地址');
+            addressCell.onclick = function() {
+                toggleAddress(this, this.getAttribute('data-full-address'));
+            };
+
+            for (let i = 2; i <= 5; i++) {
+                let cell = row.insertCell(i);
+                cell.id = `cell-${index}-${i}`;
+                cell.textContent = '正在查询...';
+            }
+        });
+
+        resultTable.appendChild(document.createElement('tbody'));
+        resultDiv.appendChild(resultTable);
+
+        processProxyBatches(addresses, 0, 5);
+    });
+
+    // Other functions remain the same ...
+    async function processProxyBatches(addresses, startIndex, batchSize) {
+        const endIndex = Math.min(startIndex + batchSize, addresses.length);
+        const batch = addresses.slice(startIndex, endIndex);
+
+        try {
+            const response = await fetch('https://fuel-fhfhkfhvzy.cn-hongkong.fcapp.run/getWalletInfo', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    wallet_addresses: batch
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            data.forEach((result, i) => {
+                const actualIndex = startIndex + i;
+                updateRowData(actualIndex, result);
+                totalSummary.totalPoints += result.total_points;
+            });
+
+        } catch (error) {
+            console.error('Error:', error);
+            batch.forEach((_, i) => {
+                updateRowError(startIndex + i);
+            });
+        }
+
+        if (endIndex < addresses.length) {
+            processProxyBatches(addresses, endIndex, batchSize);
+        } else {
+            updateTotalSummary();
+            addExportButton();
+        }
+    }
+
+    function updateRowData(index, data) {
+        document.getElementById(`cell-${index}-2`).textContent = data.passive_points.toFixed(2);
+        document.getElementById(`cell-${index}-3`).textContent = data.active_points.toFixed(2);
+        document.getElementById(`cell-${index}-4`).textContent = data.gas_points.toFixed(2);
+        document.getElementById(`cell-${index}-5`).textContent = data.total_points.toFixed(2);
+    }
+
+    function updateRowError(index) {
+        for (let i = 2; i <= 5; i++) {
+            document.getElementById(`cell-${index}-${i}`).textContent = 'Error';
+        }
+    }
+
+    function updateTotalSummary() {
+        document.getElementById('total-summary').innerHTML = `
+            钱包数量：<span style="color: green;">${totalSummary.walletCount}</span> 个 | 
+            总积分：<span style="color: green;">${totalSummary.totalPoints.toFixed(2)}</span> 分
+        `;
+    }
+
+    function addExportButton() {
+        let exportBtn = document.getElementById('export-btn');
+        if (!exportBtn) {
+            exportBtn = document.createElement('button');
+            exportBtn.className = 'btn btn-secondary ms-3';
+            exportBtn.id = 'export-btn';
+            exportBtn.textContent = '导出表格';
+            exportBtn.addEventListener('click', exportToCSV);
+            document.getElementById('total-summary-container').appendChild(exportBtn);
+        }
+    }
+
+    function exportToCSV() {
+        const addresses = addressInput.value.split('\n').filter(address => address.trim() !== '');
+        let csvContent = "data:text/csv;charset=utf-8," + 
+            "编号,钱包地址,被动积分,主动积分,GAS积分,总积分\n";
+
+        addresses.forEach((address, index) => {
+            // 在导出时使用完整地址
+            const row = [
+                index + 1,
+                address,
+                document.getElementById(`cell-${index}-2`).textContent,
+                document.getElementById(`cell-${index}-3`).textContent,
+                document.getElementById(`cell-${index}-4`).textContent,
+                document.getElementById(`cell-${index}-5`).textContent
+            ].join(",");
+            csvContent += row + "\n";
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "fuel_points.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+</body>
+</html>
